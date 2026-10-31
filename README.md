@@ -47,3 +47,7 @@ Para atualizar depois: `claude plugin update metricas-projeto` e `/reload-plugin
 claude plugin validate .
 claude plugin test .
 ```
+
+## Licença
+
+MIT. Veja [LICENSE](LICENSE).
