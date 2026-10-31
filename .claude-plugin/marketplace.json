@@ -1,0 +1,5 @@
+{
+  "name": "work-metrics",
+  "owner": { "name": "nonen9" },
+  "plugins": [{ "name": "metricas-projeto", "source": "./" }]
+}

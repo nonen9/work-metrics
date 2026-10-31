@@ -1,0 +1,6 @@
+{
+  "name": "metricas-projeto",
+  "version": "0.1.0",
+  "description": "Conta o tempo de trabalho e os tokens gastos em cada projeto e registra num livro-caixa persistente.",
+  "author": { "name": "nonen9" }
+}
