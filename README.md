@@ -1,19 +1,33 @@
 # metricas-projeto
 
-Mod do Claude Code que mede o trabalho em cada projeto e guarda um registro persistente.
+Mod do Claude Code que mede o trabalho em cada projeto e mostra tudo num dashboard ao lado do chat.
 
-O que conta, por projeto (nome `dono/repo` do remoto git, ou o nome da pasta):
+## O que mede
+
+Por projeto (nome `dono/repo` do remoto git, ou o nome da pasta), dia a dia:
 
 - **Sessão ativa**: duração dos turnos do Claude mais as pausas entre eles de até 15 minutos.
 - **Claude trabalhando**: só o tempo em que o Claude estava executando turnos.
 - **Tokens**: entrada, saída, cache lido e cache gravado, incluindo subagentes.
 - **Custo** em US$, como o `/cost` soma.
-- Tudo também quebrado por dia (fuso de São Paulo).
 
-Onde fica: no armazenamento do mod (`$.store`, vale entre sessões) e espelhado em
-`~/.claude/metricas-projetos/livro.json` e `~/.claude/metricas-projetos/RELATORIO.md`.
+## Dashboard
 
-Comandos: `/metricas` mostra a tabela; `/metricas zerar` apaga tudo.
+`/metricas` abre o painel com:
+
+- filtro de período: Hoje, 7 dias, 30 dias, Tudo;
+- cartões com sessão ativa, tempo do Claude, tokens e custo do período;
+- gráfico de horas por dia nos últimos 14 dias;
+- ranking dos projetos com barra de tempo, tokens e custo.
+
+A barra de status mostra o dia do projeto atual: `⏱ dono/repo hoje: 1h12 · 340k tokens`.
+`/metricas zerar` apaga tudo.
+
+## Privacidade
+
+Os números ficam só na máquina de quem usa: no armazenamento do mod e espelhados em
+`~/.claude/metricas-projetos/livro.json`. O mod não envia nada para lugar nenhum, e este repositório
+contém apenas o código.
 
 ## Instalação
 

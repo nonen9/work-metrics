@@ -1,3 +1,6 @@
 .claude-plugin/types/
 .DS_Store
 *.log
+# dados de uso nunca vão para o repositório
+livro.json
+metricas-projetos/
