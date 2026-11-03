@@ -13,7 +13,9 @@ Por projeto (nome `dono/repo` do remoto git, ou o nome da pasta), dia a dia:
 
 ## Dashboard
 
-`/metricas` abre o painel com:
+O painel abre sozinho na barra lateral quando a sessão começa e se atualiza em tempo real:
+enquanto o Claude trabalha, o turno em andamento entra na conta (a cada 15 s) e o título mostra
+**● ao vivo**. Se você fechar o painel, `/metricas` abre de novo. Ele tem:
 
 - filtro de período: Hoje, 7 dias, 30 dias, Tudo;
 - cartões com sessão ativa, tempo do Claude, tokens e custo do período;

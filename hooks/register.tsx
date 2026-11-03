@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, TurnUsage } from 'claude-code'
 
-import type { Contagem, Livro, Periodo, Projeto } from '../types'
+import type { AoVivo, Contagem, Livro, Periodo, Projeto } from '../types'
 import {
   barra,
   compacto,
@@ -32,6 +32,7 @@ const PAINEL = 'metricas'
 const PAUSA_MAX_MS = 15 * 60 * 1000
 const PASTA = '.claude/metricas-projetos'
 const DIAS_GRAFICO = 14
+const TIQUE_MS = 15 * 1000
 
 const PERIODOS: { id: Periodo; rotulo: string }[] = [
   { id: 'hoje', rotulo: 'Hoje' },
@@ -44,6 +45,11 @@ const livroAtual = atom({ plugin: 'metricas-projeto', key: 'livro' } as const, n
   shape: 'livro-1',
 })
 const periodo = atom({ plugin: 'metricas-projeto', key: 'periodo' } as const, '7d')
+const aoVivo = atom({ plugin: 'metricas-projeto', key: 'aoVivo' } as const, {
+  turnoDesde: null,
+  pausaAntes: 0,
+  agora: 0,
+} as AoVivo)
 
 // Estado do processo (recomeça num reload; o livro fica no $.store).
 const est = {
@@ -148,6 +154,29 @@ export const register: Register = on => {
       if (usd > jaContado) await lancar($, { usd: usd - jaContado })
       await $.store.set(chaveUsd, usd)
     }
+    await descobrirProjeto($).catch(() => undefined)
+
+    // Painel fixo na lateral desde o início, atualizado a cada TIQUE_MS.
+    const agora = await $.clock.now()
+    await update($, aoVivo, v => ({ ...v, agora }))
+    const aberto = (await $.ui.panes()).some(p => p.id === PAINEL)
+    if (!aberto) await $.ui.open({ id: PAINEL, title: 'Métricas' })
+    $.clock.every(TIQUE_MS, () => {
+      void $.clock.now().then(t => update($, aoVivo, v => ({ ...v, agora: t })))
+    })
+    return next(e)
+  })
+
+  on('turn.start', async ($, e, next) => {
+    if (e.agentId === undefined) {
+      const agora = await $.clock.now()
+      const pausa = est.fimUltimoTurno > 0 ? Math.max(0, agora - est.fimUltimoTurno) : Infinity
+      await update($, aoVivo, () => ({
+        turnoDesde: agora,
+        pausaAntes: pausa <= PAUSA_MAX_MS ? pausa / 1000 : 0,
+        agora,
+      }))
+    }
     return next(e)
   })
 
@@ -171,6 +200,10 @@ export const register: Register = on => {
     }
 
     await lancar($, delta).catch(() => undefined)
+    if (e.agentId === undefined) {
+      const agora = await $.clock.now()
+      await update($, aoVivo, () => ({ turnoDesde: null, pausaAntes: 0, agora }))
+    }
     return r
   })
 
@@ -194,14 +227,48 @@ export const register: Register = on => {
     const { Box, Text, Button } = els
     const livro = (await read($, livroAtual)) ?? livroVazio()
     const sel = await read($, periodo)
-    const agora = await $.clock.now()
+    const vivo = await read($, aoVivo)
+    const agora = Math.max(await $.clock.now(), vivo.agora)
     const colunas = e.props.bodyColumns
     const estreito = colunas < 64
 
-    const linhas = linhasDoPeriodo(livro, sel, agora)
+    // O turno em andamento ainda não está no livro: soma ao projeto atual, hoje.
+    const emTurno = vivo.turnoDesde !== null
+    const claudeAgora = emTurno ? Math.max(0, agora - (vivo.turnoDesde ?? agora)) / 1000 : 0
+    const extra: Partial<Contagem> = emTurno
+      ? { segundosClaude: claudeAgora, segundosSessao: claudeAgora + vivo.pausaAntes }
+      : {}
+    const proj = est.projeto
+    const livroVivo: Livro =
+      emTurno && proj
+        ? (() => {
+            const hoje = diaSP(agora)
+            const atual: Projeto = livro.projetos[proj.chave] ?? {
+              ...zero(),
+              nome: proj.nome,
+              primeiroUso: '',
+              ultimoUso: '',
+              sessoes: [],
+              dias: {},
+            }
+            return {
+              ...livro,
+              projetos: {
+                ...livro.projetos,
+                [proj.chave]: {
+                  ...atual,
+                  ...somar(atual, extra),
+                  dias: { ...atual.dias, [hoje]: somar(atual.dias[hoje] ?? zero(), { ...extra, turnos: 1 }) },
+                },
+              },
+            }
+          })()
+        : livro
+
+    const linhas = linhasDoPeriodo(livroVivo, sel, agora)
     const total = linhas.reduce((a, l) => somar(a, l.c), zero())
     const maxTempo = Math.max(0, ...linhas.map(l => l.c.segundosSessao))
-    const dias = porDia(livro, ultimosDias(agora, DIAS_GRAFICO))
+    const dias = porDia(livroVivo, ultimosDias(agora, DIAS_GRAFICO))
     const horas = dias.map(d => ({ dia: d.dia, horas: d.c.segundosSessao / 3600 }))
 
     const cartao = (rotulo: string, valor: string, detalhe: string) => (
@@ -224,9 +291,12 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column" gap={1}>
         <Box flexDirection={estreito ? 'column' : 'row'} justifyContent="space-between" gap={1}>
-          <Text bold size="title">
-            Métricas de trabalho
-          </Text>
+          <Box flexDirection="row" gap={1}>
+            <Text bold size="title">
+              Métricas de trabalho
+            </Text>
+            {emTurno && <Text color="claude">● ao vivo</Text>}
+          </Box>
           <Box flexDirection="row" gap={1}>
             {PERIODOS.map(p => (
               <Button
@@ -304,7 +374,7 @@ export const register: Register = on => {
         </Box>
 
         <Text dimColor size="caption">
-          Sessão ativa = turnos + pausas de até 15 min. Os dados ficam só nesta máquina (~/{PASTA}/livro.json).
+          Sessão ativa = turnos + pausas de até 15 min. Atualiza a cada 15 s. Os dados ficam só nesta máquina (~/{PASTA}/livro.json).
         </Text>
       </Box>
     )

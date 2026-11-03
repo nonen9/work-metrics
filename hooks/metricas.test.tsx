@@ -83,3 +83,35 @@ test('sem dados, o dashboard diz que não há nada', async ($, on) => {
   expect((await ui.find({ type: 'Text', text: /Nada registrado/ }))?.text).toBe('Nada registrado neste período ainda.')
   await ui.unmount()
 })
+
+test('abre o painel sozinho e conta o turno em andamento ao vivo', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.UTC(2026, 9, 31, 15) })
+  mock.store(on)
+  mock.env(on, { HOME: '/home/teste' })
+  const abertos: string[] = []
+  on('session.repo', () => ({
+    value: { root: '/w/projeto', remote: 'git@github.com:exemplo/projeto.git', internal: false, name: null },
+  }))
+  on('session.root', () => ({ value: '/w/projeto' }))
+  on('session.id', () => ({ value: 'sess-2' }))
+  on('session.usage', () => ({ value: { startedAt: 0, context: {} as any, rateLimits: [], cost: { usd: 0 } } }))
+  on('command.register', () => ({ value: { command: 'metricas' } }))
+  on('ui.panes', () => ({ value: [] }))
+  on('ui.open', (_, e) => {
+    abertos.push(e.id)
+    return { value: { isPlaced: true } }
+  })
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('turn.start', (_, e) => ({ turnId: e.turnId }))
+
+  await $.session.start({ cwd: '/w/projeto', surface: 'desktop', isInteractive: true })
+  expect(abertos).toEqual(['metricas'])
+
+  await $.turn.start({ turnId: 't1', text: 'oi' })
+  await clock.advance(5 * 60_000)
+
+  const ui = await $.ui.mount({ ...PAINEL, surface: 'desktop' })
+  expect((await ui.find({ type: 'Text', text: /ao vivo/ }))?.text).toBe('● ao vivo')
+  expect((await ui.find({ type: 'Text', text: /^5min$/ }))?.text).toBe('5min')
+  await ui.unmount()
+})

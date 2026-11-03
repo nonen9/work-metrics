@@ -1,6 +1,6 @@
 {
   "name": "metricas-projeto",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Conta o tempo de trabalho e os tokens gastos em cada projeto e mostra tudo num dashboard ao lado do chat.",
   "author": {
     "name": "nonen9"
